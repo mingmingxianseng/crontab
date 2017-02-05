@@ -1,0 +1,25 @@
+{
+    "name": "mingmingxianseng/crontab",
+    "description": "crontab",
+    "version": "1.0.0",
+    "authors": [
+        {
+            "name": "chenmingming",
+            "email": "mingming0929@139.com"
+        }
+    ],
+    "require-dev": {
+        "phpunit/phpunit": "*",
+        "mmxs/mmapi": "dev-master"
+    },
+    "autoload": {
+        "psr-4": {
+            "crontab\\": [
+                "src/"
+            ]
+        }
+    },
+    "require": {
+        "php": ">=7.0"
+    }
+}
