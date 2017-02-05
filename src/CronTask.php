@@ -126,7 +126,7 @@ class CronTask
                 , $this->cronMain->getExecFilePath()
                 , $this->action
                 , $this->arg
-                , $this->log
+                , $this->log??'/dev/null'
             );
             $this->cronMain->log($cmd, 'task');
             exec($cmd);

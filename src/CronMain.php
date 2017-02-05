@@ -173,7 +173,8 @@ class CronMain
                 $newTask = new CronTask($task['name'], $task['crontab'], $task['arg']);
                 $newTask
                     ->setCronMain($this)
-                    ->setAction($task['action']);
+                    ->setAction($task['action'])
+                    ->setLog($task['log']);
                 $this->cronTasks[] = $newTask;
                 $this->cronTaskCount++;
                 $this->log('load task ' . $newTask->getName());
