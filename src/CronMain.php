@@ -56,7 +56,6 @@ class CronMain
     public function __construct(array $options)
     {
         $this->options = array_merge($this->options, $options);
-        set_exception_handler([$this, 'exceptionHandle']);
     }
 
     /**
@@ -113,7 +112,8 @@ class CronMain
             throw new Exception("crontab need posix_getpid function");
         }
         $this->pid = posix_getpid();
-        if (!file_put_contents($this->pid_file_path, $this->pid)) {
+        $rs        = file_put_contents($this->pid_file_path, $this->pid);
+        if ($rs <= 0) {
             throw new Exception('pid_file_path can not write anything~');
         }
     }
@@ -124,13 +124,14 @@ class CronMain
      */
     public function start()
     {
+        set_exception_handler([$this, 'exceptionHandle']);
         $this->start_time = time();
         if (PHP_SAPI != 'cli') {
             throw new Exception("crontab must run in cli,actual is " . PHP_SAPI);
         }
         $this->createPidFile();
         $this->log('main process started!')
-            ->log('main process pid:' . $this->pid);
+            ->log('main process pid:' . $this->pid . ' @' . $this->pid_file_path);
         $this->parseTasks();
         while (true) {
             foreach ($this->cronTasks as $crontabTask)
@@ -328,5 +329,23 @@ class CronMain
         $this->logger = $logger;
 
         return $this;
+    }
+
+    /**
+     * @desc   isRunning 判断守护进程是否已经启动
+     * @author chenmingming
+     * @return bool
+     */
+    public function isRunning()
+    {
+        $pid = file_get_contents($this->pid_file_path);
+        if ($pid) {
+            exec("ps -eo pid | grep {$pid}", $output);
+            if ($output) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
