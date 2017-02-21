@@ -62,7 +62,9 @@ class CronMain
     public function __construct(array $options)
     {
         $this->options = array_merge($this->options, $options);
-        $this->setLogPath($this->options['log'])
+        $this
+            ->setRunFile($this->options['run_file'])
+            ->setLogPath($this->options['log'])
             ->setPhpBin($this->options['php_bin'])
             ->setPidPath($this->options['pid_path'])
             ->setLogger(new CronLog());
@@ -183,7 +185,8 @@ class CronMain
                 $newTask = new CronTask($task['name'], $task['crontab'], $task['arg']);
                 $newTask
                     ->setCronMain($this)
-                    ->setAction($task['action']);
+                    ->setAction($task['action'])
+                    ->setAction($task['log']);
                 $this->cronTasks[] = $newTask;
                 $this->cronTaskCount++;
                 $this->log('load task ' . $newTask->getName());
