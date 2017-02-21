@@ -10,7 +10,7 @@
     ],
     "require-dev": {
         "phpunit/phpunit": "*",
-        "mmxs/mmapi": "dev-master"
+        "mmxs/mmapi": "^3.8"
     },
     "autoload": {
         "psr-4": {

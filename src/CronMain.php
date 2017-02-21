@@ -8,15 +8,17 @@
 
 namespace crontab;
 
+use crontab\log\CronLog;
 use \Exception;
+use mmapi\core\AppException;
 
 class CronMain
 {
     protected $start_time;//定时任务开启的时间
-    protected $php_bin_path = 'php';//php 所在文件
-    protected $exec_file_path = ''; //执行文件路径
-    protected $log_path = '/dev/null';//定时任务日志文件 默认黑洞
-    protected $pid_file_path = '/tmp/crontab.pid';//保存进程id的文件
+    protected $php_bin;//php 所在文件
+    protected $run_file; //执行文件路径
+    protected $log_path;//定时任务日志文件 默认黑洞
+    protected $pid_path;//保存进程id的文件
     protected $pid;
 
     /** @var  Logger */
@@ -26,6 +28,10 @@ class CronMain
     //定时任务数量
     protected $cronTaskCount = 0;
     protected $options = [
+        'php_bin'   => 'php',
+        'log'       => '/dev/null',
+        'pid_path'  => '/tmp/crontab.pid',
+        'run_file'  => '',
         'namespace' => '',
         'paths'     => [],
         'tasks'     => [
@@ -56,6 +62,10 @@ class CronMain
     public function __construct(array $options)
     {
         $this->options = array_merge($this->options, $options);
+        $this->setLogPath($this->options['log'])
+            ->setPhpBin($this->options['php_bin'])
+            ->setPidPath($this->options['pid_path'])
+            ->setLogger(new CronLog());
         set_exception_handler([$this, 'exceptionHandle']);
     }
 
@@ -84,7 +94,7 @@ class CronMain
      */
     public function stop()
     {
-        if (!is_file($this->pid_file_path)) {
+        if (!is_file($this->pid_path)) {
             throw new Exception("pid_file is not exist");
         }
         if (!$this->delPidFile()) {
@@ -99,7 +109,7 @@ class CronMain
      */
     public function delPidFile(): bool
     {
-        return unlink($this->pid_file_path);
+        return unlink($this->pid_path);
     }
 
     /**
@@ -113,7 +123,7 @@ class CronMain
             throw new Exception("crontab need posix_getpid function");
         }
         $this->pid = posix_getpid();
-        if (!file_put_contents($this->pid_file_path, $this->pid)) {
+        if (!file_put_contents($this->pid_path, $this->pid)) {
             throw new Exception('pid_file_path can not write anything~');
         }
     }
@@ -192,7 +202,7 @@ class CronMain
      */
     protected function isStop()
     {
-        $pid = file_get_contents($this->pid_file_path);
+        $pid = file_get_contents($this->pid_path);
         if ($pid != $this->pid) {
             return true;
         }
@@ -224,19 +234,23 @@ class CronMain
     /**
      * @return string
      */
-    public function getPhpBinPath(): string
+    public function getPhpBin(): string
     {
-        return $this->php_bin_path;
+        return $this->php_bin;
     }
 
     /**
-     * @param string $php_bin_path
+     * @param string $php_bin
      *
      * @return CronMain
+     * @throws Exception
      */
-    public function setPhpBinPath($php_bin_path): CronMain
+    public function setPhpBin($php_bin): CronMain
     {
-        $this->php_bin_path = $php_bin_path;
+        $this->php_bin = $php_bin;
+        if (empty($this->php_bin)) {
+            throw new Exception("php bin file can't be empty");
+        }
 
         return $this;
     }
@@ -244,19 +258,19 @@ class CronMain
     /**
      * @return string
      */
-    public function getExecFilePath(): string
+    public function getRunFile(): string
     {
-        return $this->exec_file_path;
+        return $this->run_file;
     }
 
     /**
-     * @param string $exec_file_path
+     * @param string $run_file
      *
      * @return CronMain
      */
-    public function setExecFilePath($exec_file_path): CronMain
+    public function setRunFile($run_file): CronMain
     {
-        $this->exec_file_path = $exec_file_path;
+        $this->run_file = $run_file;
 
         return $this;
     }
@@ -284,19 +298,19 @@ class CronMain
     /**
      * @return string
      */
-    public function getPidFilePath(): string
+    public function getPidPath(): string
     {
-        return $this->pid_file_path;
+        return $this->pid_path;
     }
 
     /**
-     * @param string $pid_file_path
+     * @param string $pid_path
      *
      * @return CronMain
      */
-    public function setPidFilePath($pid_file_path): CronMain
+    public function setPidPath($pid_path): CronMain
     {
-        $this->pid_file_path = $pid_file_path;
+        $this->pid_path = $pid_path;
 
         return $this;
     }

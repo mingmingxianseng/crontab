@@ -122,8 +122,8 @@ class CronTask
         if ($this->cronTime->check() && !$this->hasRuned()) {
             $this->cronMain->log('run ' . $this->name, 'task');
             $cmd = sprintf("%s %s %s %s >> %s"
-                , $this->cronMain->getPhpBinPath()
-                , $this->cronMain->getExecFilePath()
+                , $this->cronMain->getPhpBin()
+                , $this->cronMain->getRunFile()
                 , $this->action
                 , $this->arg
                 , $this->log

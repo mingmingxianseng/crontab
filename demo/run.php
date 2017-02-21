@@ -29,7 +29,7 @@ foreach ($argv as $arg) {
 
 //启动主线程
 $main = new crontab\CronMain(Config::get('crontab'));
-$main->setExecFilePath(__FILE__)
+$main->setRunFile(__FILE__)
     ->setLogger(new crontab\log\CronLog());
 if (is_null($action)) {
     $main->start();
