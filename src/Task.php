@@ -8,8 +8,12 @@
 
 namespace crontab;
 
-interface Task
+abstract class Task
 {
+    const ACTION = 'task';
+    /** @var  Logger */
+    static private $logger;
+
     /**
      * @desc   run
      * @author chenmingming
@@ -18,5 +22,35 @@ interface Task
      *
      * @return void
      */
-    public function run($args);
+    abstract public function run();
+
+    public function exceptionHandle(\Throwable $e)
+    {
+        $this->log($e);
+    }
+
+    public function main()
+    {
+        set_exception_handler([$this, 'exceptionHandle']);
+        $this->run();
+    }
+
+    protected function log($msg, $label = null)
+    {
+        if (self::$logger) {
+            if (is_null($label)) $label = array_pop(explode('\\', static::class));
+            self::$logger->write($msg, $label);
+        }
+    }
+
+    /**
+     * @desc   setLogger
+     * @author chenmingming
+     *
+     * @param Logger $logger
+     */
+    static public function setLogger(Logger $logger)
+    {
+        self::$logger = $logger;
+    }
 }

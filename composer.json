@@ -1,7 +1,7 @@
 {
     "name": "mingmingxianseng/crontab",
     "description": "crontab",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "authors": [
         {
             "name": "chenmingming",
@@ -10,7 +10,7 @@
     ],
     "require-dev": {
         "phpunit/phpunit": "*",
-        "mmxs/mmapi": "^3.8"
+        "mmxs/mmapi": "*"
     },
     "autoload": {
         "psr-4": {
@@ -20,6 +20,7 @@
         }
     },
     "require": {
-        "php": ">=7.0"
+        "php": ">=7.0",
+        "elasticsearch/elasticsearch": "v5.1.3"
     }
 }

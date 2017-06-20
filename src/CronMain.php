@@ -8,17 +8,11 @@
 
 namespace crontab;
 
-use crontab\log\CronLog;
 use \Exception;
-use mmapi\core\AppException;
 
 class CronMain
 {
     protected $start_time;//定时任务开启的时间
-    protected $php_bin;//php 所在文件
-    protected $run_file; //执行文件路径
-    protected $log_path;//定时任务日志文件 默认黑洞
-    protected $pid_path;//保存进程id的文件
     protected $pid;
 
     /** @var  Logger */
@@ -28,16 +22,14 @@ class CronMain
     //定时任务数量
     protected $cronTaskCount = 0;
     protected $options = [
-        'php_bin'   => 'php',
-        'log'       => '/dev/null',
-        'pid_path'  => '/tmp/crontab.pid',
-        'run_file'  => '',
         'namespace' => '',
+        'php_bin'   => 'php',
+        'pid_path'  => '/tmp/crontab.pid',
+        'log_path'  => '/dev/null',
+        'entrance'  => '',
         'paths'     => [],
         'tasks'     => [
             [
-                //该任务状态 true：开启 false:关闭
-                'status'  => false,
                 //该任务描述
                 'name'    => 'demo',
                 //该任务名称
@@ -61,14 +53,10 @@ class CronMain
      */
     public function __construct(array $options)
     {
-        $this->options = array_merge($this->options, $options);
-        $this
-            ->setRunFile($this->options['run_file'])
-            ->setLogPath($this->options['log'])
-            ->setPhpBin($this->options['php_bin'])
-            ->setPidPath($this->options['pid_path'])
-            ->setLogger(new CronLog());
-        set_exception_handler([$this, 'exceptionHandle']);
+        $this->options = array_replace($this->options, $options);
+        if (!$this->options['entrance']) {
+            $this->options['entrance'] = $_SERVER['argv'][0];
+        }
     }
 
     /**
@@ -79,13 +67,8 @@ class CronMain
      */
     public function exceptionHandle(\Throwable $e)
     {
-        $error = sprintf("[%s] %s @%s +%s"
-            , $e->getCode()
-            , $e->getMessage()
-            , $e->getFile()
-            , $e->getLine());
-        $this->log($error);
-        echo "\033[1;40;31m" . $error . "\e[0m\n";
+        $this->log($e->__toString());
+
         //删除pid文件
         $this->delPidFile();
     }
@@ -96,7 +79,7 @@ class CronMain
      */
     public function stop()
     {
-        if (!is_file($this->pid_path)) {
+        if (!is_file($this->options['pid_path'])) {
             throw new Exception("pid_file is not exist");
         }
         if (!$this->delPidFile()) {
@@ -111,7 +94,7 @@ class CronMain
      */
     public function delPidFile(): bool
     {
-        return unlink($this->pid_path);
+        return unlink($this->options['pid_path']);
     }
 
     /**
@@ -125,7 +108,8 @@ class CronMain
             throw new Exception("crontab need posix_getpid function");
         }
         $this->pid = posix_getpid();
-        if (!file_put_contents($this->pid_path, $this->pid)) {
+        $rs        = file_put_contents($this->options['pid_path'], $this->pid);
+        if ($rs <= 0) {
             throw new Exception('pid_file_path can not write anything~');
         }
     }
@@ -136,42 +120,24 @@ class CronMain
      */
     public function start()
     {
+        set_exception_handler([$this, 'exceptionHandle']);
         $this->start_time = time();
         if (PHP_SAPI != 'cli') {
             throw new Exception("crontab must run in cli,actual is " . PHP_SAPI);
         }
         $this->createPidFile();
-        $this->log('main process started!')
-            ->log('main process pid:' . $this->pid);
+        $this->log('主进程启动成功')
+            ->log('主进程 pid:' . $this->pid . ' @' . $this->options['pid_path']);
         $this->parseTasks();
         while (true) {
             foreach ($this->cronTasks as $crontabTask)
                 $crontabTask->run();
             sleep(10);
             //每次循环前查看有没有
-            if ($this->isStop()) {
+            if ($this->isStop())
                 break;
-            }
         }
-        $this->log("main process[{$this->pid}] stopped!");
-    }
-
-    /**
-     * @desc   run执行某个任务
-     * @author chenmingming
-     *
-     * @param string $action 任务名称（定时任务文件名称）
-     * @param array  $arg    任务所需参数
-     *
-     * @throws Exception
-     */
-    public function run($action, $arg = [])
-    {
-        $class = $this->options['namespace'] . "\\" . $action;
-        if (!class_exists($class))
-            throw new Exception("task $class not exist");
-        $task = new $class();
-        $task instanceof Task && $task->run($arg);
+        $this->log("主进程 [{$this->pid}] 退出.");
     }
 
     /**
@@ -181,21 +147,15 @@ class CronMain
     protected function parseTasks()
     {
         foreach ($this->options['tasks'] as $task) {
-            if ($task['status']) {
-                $newTask = new CronTask($task['name'], $task['crontab'], $task['arg']);
-                $newTask
-                    ->setCronMain($this)
-                    ->setAction($task['action'])
-                    ->setAction($task['log']);
-                $this->cronTasks[] = $newTask;
-                $this->cronTaskCount++;
-                $this->log('load task ' . $newTask->getName());
-            }
+            $newTask           = new CronTask($task, $this);
+            $this->cronTasks[] = $newTask;
+            $this->cronTaskCount++;
+            $this->log('load task ' . $newTask->getName());
         }
-        $this->log('total tasks:' . $this->cronTaskCount);
-        if ($this->cronTaskCount <= 0) {
-            throw new Exception("没有设置定时任务");
-        }
+        $this->log('所有任务加载成功.');
+        $this->log('任务数量:' . $this->cronTaskCount);
+        if ($this->cronTaskCount <= 0)
+            throw new Exception("配置中没有任务");
     }
 
     /**
@@ -205,8 +165,10 @@ class CronMain
      */
     protected function isStop()
     {
-        $pid = file_get_contents($this->pid_path);
+        $pid = file_get_contents($this->options['pid_path']);
         if ($pid != $this->pid) {
+            $this->log('pid is diff.prepare to exit.[' . $pid . ']');
+
             return true;
         }
 
@@ -226,9 +188,9 @@ class CronMain
     {
         if ($this->logger) {
             if ($label) {
-                $msg = "[$label] " . $msg;
+                $msg = "[{$this->pid}] " . $msg;
             }
-            $this->logger->write($msg);
+            $this->logger->write($msg, $label);
         }
 
         return $this;
@@ -237,45 +199,17 @@ class CronMain
     /**
      * @return string
      */
-    public function getPhpBin(): string
+    public function getPhpBinPath(): string
     {
-        return $this->php_bin;
-    }
-
-    /**
-     * @param string $php_bin
-     *
-     * @return CronMain
-     * @throws Exception
-     */
-    public function setPhpBin($php_bin): CronMain
-    {
-        $this->php_bin = $php_bin;
-        if (empty($this->php_bin)) {
-            throw new Exception("php bin file can't be empty");
-        }
-
-        return $this;
+        return $this->options['php_bin'];
     }
 
     /**
      * @return string
      */
-    public function getRunFile(): string
+    public function getExecFilePath(): string
     {
-        return $this->run_file;
-    }
-
-    /**
-     * @param string $run_file
-     *
-     * @return CronMain
-     */
-    public function setRunFile($run_file): CronMain
-    {
-        $this->run_file = $run_file;
-
-        return $this;
+        return $this->options['entrance'];
     }
 
     /**
@@ -283,39 +217,15 @@ class CronMain
      */
     public function getLogPath(): string
     {
-        return $this->log_path;
-    }
-
-    /**
-     * @param string $log_path
-     *
-     * @return CronMain
-     */
-    public function setLogPath($log_path): CronMain
-    {
-        $this->log_path = $log_path;
-
-        return $this;
+        return $this->options['log_path'];
     }
 
     /**
      * @return string
      */
-    public function getPidPath(): string
+    public function getPidFilePath(): string
     {
-        return $this->pid_path;
-    }
-
-    /**
-     * @param string $pid_path
-     *
-     * @return CronMain
-     */
-    public function setPidPath($pid_path): CronMain
-    {
-        $this->pid_path = $pid_path;
-
-        return $this;
+        return $this->options['pid_path'];
     }
 
     /**
@@ -323,6 +233,10 @@ class CronMain
      */
     public function getPid(): string
     {
+        if ($this->pid === null) {
+            $this->pid = file_get_contents($this->options['pid_path']);
+        }
+
         return $this->pid;
     }
 
@@ -344,5 +258,37 @@ class CronMain
         $this->logger = $logger;
 
         return $this;
+    }
+
+    /**
+     * @desc   isRunning 判断守护进程是否已经启动
+     * @author chenmingming
+     * @return bool
+     */
+    public function isRunning()
+    {
+        if ($this->getPid()) {
+            exec("ps -eo pid | grep {$this->getPid()}", $output);
+            if ($output) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function open()
+    {
+        $command = sprintf("%s %s > %s &"
+            , $this->getPhpBinPath()
+            , $this->getExecFilePath()
+            , $this->getLogPath()
+        );
+        exec($command);
+    }
+
+    public function close()
+    {
+        $this->delPidFile();
     }
 }

@@ -30,19 +30,21 @@ class CronTask
      * @var array 最近10运行的时间戳数组
      */
     protected $runTimes = [];
+    protected $runCounts = 0;
 
     /**
      * CronTask constructor.
      *
-     * @param string $taskName 任务名称
-     * @param string $crontab  定时任务配置
-     * @param string $arg      定时任务执行参数
+     * @param array $options 配置
      */
-    public function __construct($taskName, $crontab, $arg = '')
+    public function __construct($options, CronMain $cronMain)
     {
-        $this->setName($taskName)
-            ->setCronTime($crontab)
-            ->setArg($arg);
+        $this->setName($options['name'])
+            ->setCronTime($options['crontab'])
+            ->setArg($options['arg'])
+            ->setAction($options['action'])
+            ->setLog($options['log'])
+            ->setCronMain($cronMain);
     }
 
     /**
@@ -83,10 +85,14 @@ class CronTask
 
     /**
      * @param string $arg
+     *
+     * @return $this
      */
     public function setArg(string $arg)
     {
         $this->arg = $arg;
+
+        return $this;
     }
 
     /**
@@ -120,15 +126,15 @@ class CronTask
     public function run()
     {
         if ($this->cronTime->check() && !$this->hasRuned()) {
-            $this->cronMain->log('run ' . $this->name, 'task');
+            $this->cronMain->log("启动:" . $this->name);
             $cmd = sprintf("%s %s %s %s >> %s"
-                , $this->cronMain->getPhpBin()
-                , $this->cronMain->getRunFile()
+                , $this->cronMain->getPhpBinPath()
+                , $this->cronMain->getExecFilePath()
                 , $this->action
                 , $this->arg
-                , $this->log
+                , $this->log??'/dev/null'
             );
-            $this->cronMain->log($cmd, 'task');
+            $this->cronMain->log($cmd, 'cmd');
             exec($cmd);
         }
     }
@@ -146,9 +152,9 @@ class CronTask
             return true;
         } else {
             array_push($this->runTimes, $timestamp);
-            if (count($this->runTimes) > 10) {
+            $this->runCounts++;
+            if (count($this->runTimes) > 10)
                 array_shift($this->runTimes);
-            }
         }
 
         return false;
@@ -189,9 +195,17 @@ class CronTask
      */
     public function setLog(string $log): CronTask
     {
-        $this->log = $log;
+        $this->log = $log ? $log : '/dev/null';
 
         return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getRunCounts(): int
+    {
+        return $this->runCounts;
     }
 
 }
