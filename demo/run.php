@@ -3,7 +3,7 @@
  * Created by PhpStorm.
  * User: chenmingming
  * Date: 2017/2/5
- * Time: 20:29
+ * Time: 13:15
  */
 use mmapi\core\Config;
 use mmapi\core\App;
@@ -12,8 +12,7 @@ $vpath = dirname(__DIR__);
 require_once $vpath . '/vendor/autoload.php';
 
 Config::set('vpath', $vpath);
-Config::set('conf_path', __DIR__);
-Config::set('conf_file', ['crontab.php']);
+Config::set('conf_file', ['conf.php', 'crontab.php', 'debug.php']);
 App::start();
 
 $argv = $_SERVER['argv'];
@@ -28,9 +27,11 @@ foreach ($argv as $arg) {
 }
 
 //启动主线程
-$main = new crontab\CronMain(Config::get('crontab'));
-$main->setRunFile(__FILE__)
-    ->setLogger(new crontab\log\CronLog());
+$main = new \crontab\CronMain(Config::get('crontab'));
+$main->setExecFilePath(__FILE__)
+    ->setLogger(new \crontab\log\CommonLog())
+    ->setPidFilePath('/dev/shm/crontab.pid');
+
 if (is_null($action)) {
     $main->start();
 } else {
